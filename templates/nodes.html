@@ -20,25 +20,19 @@
             <button class="modal-close" onclick="closeModal('nodeModal')">&times;</button>
         </div>
         <div class="modal-body">
-            <div class="field"><label>Import URL</label><input class="input" id="nodeImportUrl" placeholder="vmess://... or ss://..."><button class="btn btn-sm" onclick="parseImportUrl()" style="margin-top:4px;">Parse</button></div>
+            <div class="field"><label>Import URL</label><div style="display:flex;gap:8px;"><input class="input" id="nodeImportUrl" placeholder="vmess://... or ss://..." style="flex:1;"><button class="btn btn-sm" onclick="parseImportUrl()">Parse</button></div></div>
             <div class="field"><label>Name</label><input class="input" id="nodeName"></div>
-            <div class="field-row">
-                <div class="field"><label>Protocol</label><select class="input" id="nodeProtocol" onchange="onProtoChange()"><option value="vmess">VMess</option><option value="vless">VLESS</option><option value="trojan">Trojan</option><option value="ss">SS</option><option value="hysteria2">Hysteria2</option><option value="tuic">TUIC</option></select></div>
-                <div class="field"><label>bin_type</label><select class="input" id="nodeBinType"></select></div>
-            </div>
-            <div class="field-row">
-                <div class="field"><label>Address</label><input class="input" id="nodeAddr"></div>
-                <div class="field"><label>Port</label><input class="input" type="number" id="nodePort"></div>
-            </div>
+            <div class="field"><label>Protocol</label><select class="input" id="nodeProtocol" onchange="onProtoChange()"><option value="vmess">VMess</option><option value="vless">VLESS</option><option value="trojan">Trojan</option><option value="ss">SS</option><option value="hysteria2">Hysteria2</option><option value="tuic">TUIC</option></select></div>
+            <div class="field"><label>Bin</label><select class="input" id="nodeBinType"></select></div>
+            <div class="field"><label>Address</label><input class="input" id="nodeAddr"></div>
+            <div class="field"><label>Port</label><input class="input" type="number" id="nodePort"></div>
             <div id="nodeProtoFields"></div>
             <div class="field"><label>Transport</label><select class="input" id="nodeNetwork" onchange="onNetChange()"><option value="tcp">TCP</option><option value="ws">WebSocket</option><option value="h2">HTTP/2</option><option value="grpc">gRPC</option></select></div>
             <div id="nodeNetFields"></div>
             <div class="field"><label><input type="checkbox" id="nodeTls" onchange="onTlsChange()"> TLS</label></div>
             <div id="nodeTlsFields" style="display:none;">
-                <div class="field-row">
-                    <div class="field"><label>SNI</label><input class="input" id="nodeSni"></div>
-                    <div class="field"><label>ALPN</label><input class="input" id="nodeAlpn" placeholder="h3,http/1.1"></div>
-                </div>
+                <div class="field"><label>SNI</label><input class="input" id="nodeSni"></div>
+                <div class="field"><label>ALPN</label><input class="input" id="nodeAlpn" placeholder="h3,http/1.1"></div>
                 <div class="field"><label><input type="checkbox" id="nodeAllowInsecure"> Allow Insecure</label></div>
                 <div class="field"><label>Fingerprint</label><input class="input" id="nodeFingerprint"></div>
             </div>
@@ -146,17 +140,17 @@ function renderProtoFields() {
     var div = document.getElementById('nodeProtoFields');
     var html = '';
     if (proto === 'vmess') {
-        html = '<div class="field-row"><div class="field"><label>UUID</label><input class="input" id="nf_uuid"></div><div class="field"><label>alterId</label><input class="input" type="number" id="nf_alterId" value="0"></div></div><div class="field"><label>Security</label><select class="input" id="nf_security"><option value="auto">auto</option><option value="aes-128-gcm">aes-128-gcm</option><option value="chacha20-poly1305">chacha20-poly1305</option><option value="none">none</option></select></div>';
+        html = '<div class="field"><label>UUID</label><input class="input" id="nf_uuid"></div><div class="field"><label>alterId</label><input class="input" type="number" id="nf_alterId" value="0"></div><div class="field"><label>Security</label><select class="input" id="nf_security"><option value="auto">auto</option><option value="aes-128-gcm">aes-128-gcm</option><option value="chacha20-poly1305">chacha20-poly1305</option><option value="none">none</option></select></div>';
     } else if (proto === 'vless') {
-        html = '<div class="field-row"><div class="field"><label>UUID</label><input class="input" id="nf_uuid"></div><div class="field"><label>Flow</label><input class="input" id="nf_flow"></div></div><div class="field"><label>Encryption</label><input class="input" id="nf_encryption" value="none"></div>';
+        html = '<div class="field"><label>UUID</label><input class="input" id="nf_uuid"></div><div class="field"><label>Flow</label><input class="input" id="nf_flow"></div><div class="field"><label>Encryption</label><input class="input" id="nf_encryption" value="none"></div>';
     } else if (proto === 'trojan') {
         html = '<div class="field"><label>Password</label><input class="input" id="nf_password"></div>';
     } else if (proto === 'ss') {
-        html = '<div class="field-row"><div class="field"><label>Method</label><select class="input" id="nf_method"><option value="aes-256-gcm">aes-256-gcm</option><option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option></select></div><div class="field"><label>Password</label><input class="input" id="nf_password"></div></div><div class="field"><label>Plugin</label><input class="input" id="nf_plugin" placeholder="obfs-local"></div><div class="field"><label>Plugin Opts</label><input class="input" id="nf_plugin_opts" placeholder="obfs=http;obfs-host=..."></div>';
+        html = '<div class="field"><label>Method</label><select class="input" id="nf_method"><option value="aes-256-gcm">aes-256-gcm</option><option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option></select></div><div class="field"><label>Password</label><input class="input" id="nf_password"></div><div class="field"><label>Plugin</label><input class="input" id="nf_plugin" placeholder="obfs-local"></div><div class="field"><label>Plugin Opts</label><input class="input" id="nf_plugin_opts" placeholder="obfs=http;obfs-host=..."></div>';
     } else if (proto === 'hysteria2') {
-        html = '<div class="field"><label>Password</label><input class="input" id="nf_password"></div><div class="field-row"><div class="field"><label>Up Mbps</label><input class="input" type="number" id="nf_up_mbps"></div><div class="field"><label>Down Mbps</label><input class="input" type="number" id="nf_down_mbps"></div></div><div class="field"><label>Obfs Password</label><input class="input" id="nf_obfs_password"></div>';
+        html = '<div class="field"><label>Password</label><input class="input" id="nf_password"></div><div class="field"><label>Up Mbps</label><input class="input" type="number" id="nf_up_mbps"></div><div class="field"><label>Down Mbps</label><input class="input" type="number" id="nf_down_mbps"></div><div class="field"><label>Obfs Password</label><input class="input" id="nf_obfs_password"></div>';
     } else if (proto === 'tuic') {
-        html = '<div class="field-row"><div class="field"><label>UUID</label><input class="input" id="nf_uuid"></div><div class="field"><label>Password</label><input class="input" id="nf_password"></div></div><div class="field-row"><div class="field"><label>Congestion</label><input class="input" id="nf_congestion" value="cubic"></div><div class="field"><label>UDP Mode</label><input class="input" id="nf_udp" value="native"></div></div>';
+        html = '<div class="field"><label>UUID</label><input class="input" id="nf_uuid"></div><div class="field"><label>Password</label><input class="input" id="nf_password"></div><div class="field"><label>Congestion</label><input class="input" id="nf_congestion" value="cubic"></div><div class="field"><label>UDP Mode</label><input class="input" id="nf_udp" value="native"></div>';
     }
     div.innerHTML = html;
 }
@@ -164,8 +158,8 @@ function renderProtoFields() {
 function renderNetFields() {
     var net = document.getElementById('nodeNetwork').value;
     var div = document.getElementById('nodeNetFields');
-    if (net === 'ws') div.innerHTML = '<div class="field-row"><div class="field"><label>ws_host</label><input class="input" id="nf_ws_host"></div><div class="field"><label>ws_path</label><input class="input" id="nf_ws_path" value="/"></div></div>';
-    else if (net === 'h2') div.innerHTML = '<div class="field-row"><div class="field"><label>h2_host</label><input class="input" id="nf_h2_host"></div><div class="field"><label>h2_path</label><input class="input" id="nf_h2_path" value="/"></div></div>';
+    if (net === 'ws') div.innerHTML = '<div class="field"><label>ws_host</label><input class="input" id="nf_ws_host"></div><div class="field"><label>ws_path</label><input class="input" id="nf_ws_path" value="/"></div>';
+    else if (net === 'h2') div.innerHTML = '<div class="field"><label>h2_host</label><input class="input" id="nf_h2_host"></div><div class="field"><label>h2_path</label><input class="input" id="nf_h2_path" value="/"></div>';
     else if (net === 'grpc') div.innerHTML = '<div class="field"><label>grpc_service_name</label><input class="input" id="nf_grpc_svc"></div>';
     else div.innerHTML = '';
 }

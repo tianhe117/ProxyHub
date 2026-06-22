@@ -5,6 +5,7 @@ Checks GitHub Releases for new versions and downloads matching assets.
 
 import json
 import os
+import re
 import shutil
 import tarfile
 import tempfile
@@ -26,7 +27,11 @@ def check_upgrade(bin_name):
         return {'success': False, 'message': f'Unknown binary: {bin_name}'}
 
     repo_info = BIN_REPOS[bin_name]
-    current = get_version(bin_name.strip('sing-box') if bin_name == 'sing-box' else bin_name)
+    current_raw = get_version(bin_name)
+
+    # Extract semver from raw output (e.g. "sing-box version 1.13.13" -> "1.13.13")
+    m = re.search(r'(\d+\.\d+\.\d+)', current_raw)
+    current = m.group(1) if m else current_raw
 
     # Fetch latest release from GitHub API
     try:

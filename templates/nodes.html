@@ -64,6 +64,7 @@
 {% block extra_js %}
 <script>
 var groups = [];
+var collapsedGroups = {};
 var VALID_BIN_TYPES = {
     vmess: ['xray'], vless: ['xray'], trojan: ['xray'],
     ss: ['xray', 'sslocal'], hysteria2: ['sing-box'], tuic: ['sing-box']
@@ -81,6 +82,12 @@ async function loadNodes() {
 }
 
 function renderNodes() {
+    // Save collapse state
+    var prev = document.getElementById('nodesContainer');
+    prev.querySelectorAll('.collapse-header').forEach(function(hdr) {
+        collapsedGroups[hdr.dataset.group] = hdr.classList.contains('collapsed');
+    });
+
     var c = document.getElementById('nodesContainer');
     if (!groups.length) { c.innerHTML = ''; document.getElementById('nodesEmpty').style.display = 'block'; return; }
     document.getElementById('nodesEmpty').style.display = 'none';
@@ -101,8 +108,12 @@ function renderNodes() {
                 '<button class="btn btn-sm btn-danger" onclick="confirmDelete(' + n.id + ')">&#10005;</button>' +
                 '</div>';
         }).join('');
-        return '<div class="section"><div class="collapse-header section-title" onclick="toggleCollapse(this)">&#9660; ' + subName + ' &middot; ' + g.count + ' nodes <button class="btn btn-sm" style="float:right;" onclick="event.stopPropagation();checkGroup(' + gi + ')">check all</button></div>' +
-            '<div class="row-flex" style="font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding:4px 0;">' +
+        var isSub = !!g.sub;
+        var hdrClass = isSub ? 'collapse-header section-title collapsed' : 'collapse-header section-title';
+        var bodyClass = isSub ? 'collapse-body' : 'collapse-body show';
+        var colStyle = isSub ? ' style="display:none;font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding:4px 0;"' : ' style="font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding:4px 0;"';
+        return '<div class="section"><div class="' + hdrClass + '" data-group="' + gi + '" onclick="toggleCollapse(this)">' + subName + ' &middot; ' + g.count + ' nodes <button class="btn btn-sm" style="float:right;" onclick="event.stopPropagation();checkGroup(' + gi + ')">check all</button></div>' +
+            '<div class="row-flex"' + colStyle + '>' +
                 '<span style="flex:2;padding-left:8px;">Name</span>' +
                 '<span style="flex:1">Protocol</span>' +
                 '<span style="flex:1">Bin</span>' +
@@ -111,17 +122,31 @@ function renderNodes() {
                 '<span style="flex:1">Curl</span>' +
                 '<span style="width:84px;"></span>' +
             '</div>' +
-            '<div class="collapse-body show">' + rows + '</div></div>';
+            '<div class="' + bodyClass + '">' + rows + '</div></div>';
     }).join('');
+
+    // Restore collapse state
+    if (Object.keys(collapsedGroups).length) {
+        c.querySelectorAll('.collapse-header').forEach(function(hdr) {
+            if (collapsedGroups[hdr.dataset.group]) {
+                var colHdr = hdr.nextElementSibling;
+                var body = colHdr.nextElementSibling;
+                body.classList.remove('show');
+                colHdr.style.display = 'none';
+                hdr.classList.add('collapsed');
+            }
+        });
+    }
 }
 
 function latClass(val, ok, warn) { return val <= ok ? 'lat-ok' : (val <= warn ? 'lat-warn' : 'lat-bad'); }
 
 function toggleCollapse(hdr) {
-    var body = hdr.nextElementSibling;
-    body.classList.toggle('show');
-    var arrow = hdr.innerHTML;
-    hdr.innerHTML = (arrow.indexOf('▼') !== -1) ? arrow.replace('▼', '▶') : arrow.replace('▶', '▼');
+    var colHdr = hdr.nextElementSibling;
+    var body = colHdr.nextElementSibling;
+    var collapsed = body.classList.toggle('show');
+    colHdr.style.display = collapsed ? '' : 'none';
+    hdr.classList.toggle('collapsed', !collapsed);
 }
 
 function onProtoChange() {

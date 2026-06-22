@@ -33,11 +33,100 @@ chmod +x setup.sh
 ./venv/bin/python run.py
 ```
 
-浏览器打开 `http://<server-ip>:8080`。
+浏览器打开 `http://<server-ip>:8080`，默认无认证密码（直接进入）。
 
 ## 项目结构
 
-参阅 [docs/DESIGN.md](docs/DESIGN.md)。
+```
+ProxyHub/
+├── run.py                       # 应用入口
+├── setup.sh                     # 一键部署脚本
+├── requirements.txt             # Python 依赖 (flask, pyyaml)
+├── README.md
+├── docs/DESIGN.md               # 完整设计文档
+│
+├── app/
+│   ├── settings.py              # 配置常量、二进制注册表、协议映射
+│   ├── logger.py                # WebLogger — 内存日志缓冲 + stdout 拦截
+│   │
+│   ├── models/                  # 数据访问层 (SQLite)
+│   │   ├── database.py          # 连接管理、初始化、迁移
+│   │   ├── setting.py           # 设置 CRUD
+│   │   ├── subscription.py      # 订阅 CRUD + 批量节点写入
+│   │   ├── node.py              # 节点 CRUD + 分组查询
+│   │   ├── inbound.py           # 入站 CRUD
+│   │   ├── outbound.py          # 出站 + 节点池 CRUD
+│   │   └── service.py           # 服务 CRUD
+│   │
+│   ├── services/                # 业务逻辑层
+│   │   ├── auth_service.py      # 会话认证
+│   │   ├── subscription_service.py  # 订阅获取、解析、过滤
+│   │   ├── node_service.py      # 节点管理 + 验证
+│   │   ├── outbound_service.py  # 出站 + 节点池管理
+│   │   ├── service_manager.py   # 服务启动/停止/重启 + auto-start
+│   │   ├── config_service.py    # 双进程配置生成 + 端口管理
+│   │   └── upgrade_service.py   # GitHub Releases 版本检查/下载
+│   │
+│   ├── engine/                  # 代理引擎 JSON 配置生成
+│   │   ├── xray.py              # Xray (vmess/vless/trojan/ss)
+│   │   ├── sslocal.py           # shadowsocks-rust (ss + obfs)
+│   │   └── singbox.py           # sing-box (hysteria2/tuic)
+│   │
+│   ├── process/manager.py       # POSIX 进程管理 (setsid/SIGTERM/SIGKILL)
+│   │
+│   ├── checker/                 # 节点健康检测
+│   │   ├── __init__.py          # 编排层 (全局锁、后台线程、进度)
+│   │   └── script.py            # test.sh 子进程封装
+│   │
+│   ├── routes/                  # Flask 路由 (每个 handler ≤ 10 行)
+│   │   ├── __init__.py          # create_app() + auth_required
+│   │   ├── pages.py             # 页面路由
+│   │   └── api_*.py             # 11 个 API 蓝图
+│   │
+│   └── utils/                   # 工具函数
+│       ├── helpers.py           # format_size, split_keywords
+│       └── validators.py        # 协议/端口/bin_type 验证
+│
+├── templates/                   # Jinja2 模板 (纯 HTML/CSS/vanilla JS)
+│   ├── base.html                # 应用外壳 + 全局 CSS 设计系统
+│   ├── login.html               # 登录页
+│   ├── dashboard.html           # 仪表盘
+│   ├── nodes.html               # 节点管理
+│   ├── outbounds.html           # 出站管理
+│   ├── subscriptions.html       # 订阅管理
+│   ├── inbounds.html            # 入站管理
+│   └── settings.html            # 设置页
+│
+├── scripts/test.sh              # 节点连通性测试 (TCP ping + URL test)
+├── bin/                         # 代理二进制存放 (gitignored)
+├── config/                      # 服务运行时配置 (gitignored)
+└── data/                        # SQLite 数据库 + PID 文件 (gitignored)
+```
+
+## API 概览
+
+| 前缀 | 说明 | 端点 |
+|------|------|------|
+| `/api/auth` | 认证 | login, logout |
+| `/api/settings` | 设置 | GET/POST, reset |
+| `/api/subscriptions` | 订阅 | CRUD + refresh |
+| `/api/nodes` | 节点 | CRUD + grouped + check + check/status |
+| `/api/inbounds` | 入站 | CRUD |
+| `/api/outbounds` | 出站 | CRUD + 节点池管理 + reorder |
+| `/api/services` | 服务 | CRUD + start/stop/restart |
+| `/api/bins` | 二进制状态 | status |
+| `/api/upgrade` | 升级 | check, download |
+| `/api/logs` | 日志 | GET ?since=N |
+| `/api/system` | 系统信息 | info |
+
+所有错误响应格式为 `{"success": false, "message": "..."}`。
+
+## 技术栈
+
+- **后端**: Python 3 + Flask 3.0+
+- **数据库**: SQLite (WAL 模式)
+- **前端**: Jinja2 + 纯 HTML/CSS/vanilla JS（无框架）
+- **进程管理**: POSIX 信号 (SIGTERM/SIGKILL)、setsid、PID 文件
 
 ## License
 

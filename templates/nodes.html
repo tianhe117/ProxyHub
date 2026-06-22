@@ -279,23 +279,226 @@ async function saveNode() {
 function parseImportUrl() {
     var url = document.getElementById('nodeImportUrl').value.trim();
     if (!url) return;
-    if (url.startsWith('vmess://')) {
-        try {
-            var b64 = url.slice(8);
-            var missing = b64.length % 4; if (missing) b64 += '='.repeat(4 - missing);
-            var decoded = atob(b64);
-            var d = JSON.parse(decoded);
-            document.getElementById('nodeProtocol').value = 'vmess';
-            document.getElementById('nodeName').value = d.ps || '';
-            document.getElementById('nodeAddr').value = d.add || '';
-            document.getElementById('nodePort').value = d.port || '';
-            onProtoChange();
-        } catch(e) { addLog('error', 'Failed to parse vmess URL'); }
-    } else if (url.startsWith('ss://')) {
-        addLog('warn', 'ss:// import via paste — basic fields only');
-        document.getElementById('nodeProtocol').value = 'ss';
-        onProtoChange();
+    try {
+        if (url.startsWith('vmess://')) parseVmess(url);
+        else if (url.startsWith('vless://')) parseVless(url);
+        else if (url.startsWith('ss://')) parseSs(url);
+        else if (url.startsWith('trojan://')) parseTrojan(url);
+        else if (url.startsWith('hy2://') || url.startsWith('hysteria2://')) parseHy2(url);
+        else { addLog('error', 'Unsupported URL format'); return; }
+        addLog('ok', 'Parsed URL, please review and save');
+    } catch(e) { addLog('error', 'Failed to parse URL: ' + e.message); }
+}
+
+function parseVmess(url) {
+    var b64 = url.slice(8);
+    var missing = b64.length % 4; if (missing) b64 += '='.repeat(4 - missing);
+    var d = JSON.parse(atob(b64));
+    document.getElementById('nodeProtocol').value = 'vmess';
+    document.getElementById('nodeName').value = d.ps || '';
+    document.getElementById('nodeAddr').value = d.add || '';
+    document.getElementById('nodePort').value = d.port || '';
+    var net = (d.net || 'tcp').toLowerCase();
+    if (net === 'raw') net = 'tcp';
+    document.getElementById('nodeNetwork').value = net;
+    renderNetFields();
+    if (d.tls === 'tls') {
+        document.getElementById('nodeTls').checked = true; onTlsChange();
+        document.getElementById('nodeSni').value = d.sni || d.host || '';
+        document.getElementById('nodeFingerprint').value = d.fp || '';
     }
+    onProtoChange();
+    setTimeout(function() {
+        gelSet('nf_uuid', d.id || '');
+        gelSet('nf_security', d.scy || 'auto');
+        gelSet('nf_alterId', d.aid || '0');
+        if (net === 'ws') { gelSet('nf_ws_host', d.host || ''); gelSet('nf_ws_path', d.path || '/'); }
+        else if (net === 'h2') { gelSet('nf_h2_host', d.host || ''); gelSet('nf_h2_path', d.path || '/'); }
+        else if (net === 'grpc') { gelSet('nf_grpc_svc', d.path || d.serviceName || ''); }
+    }, 50);
+}
+
+function parseVless(url) {
+    var content = url.slice(8);
+    var name = '';
+    var hashIdx = content.indexOf('#');
+    if (hashIdx !== -1) { name = decodeURIComponent(content.slice(hashIdx + 1)); content = content.slice(0, hashIdx); }
+    var params = {};
+    var qIdx = content.indexOf('?');
+    if (qIdx !== -1) {
+        var qs = content.slice(qIdx + 1);
+        content = content.slice(0, qIdx);
+        qs.split('&').forEach(function(p) {
+            var kv = p.split('=');
+            if (kv.length === 2) params[kv[0]] = decodeURIComponent(kv[1]);
+        });
+    }
+    var atIdx = content.indexOf('@');
+    var uuid = content.slice(0, atIdx);
+    var serverpart = (content.slice(atIdx + 1) || '').replace(/\/$/, '');
+    var address, port;
+    if (serverpart.includes(':')) {
+        var sp = serverpart.split(':');
+        port = parseInt(sp[sp.length - 1]);
+        address = sp.slice(0, -1).join(':');
+    } else { address = serverpart; port = 443; }
+
+    document.getElementById('nodeProtocol').value = 'vless';
+    document.getElementById('nodeName').value = name || address + ':' + port;
+    document.getElementById('nodeAddr').value = address;
+    document.getElementById('nodePort').value = port;
+    var net = (params.type || 'tcp').toLowerCase();
+    document.getElementById('nodeNetwork').value = net;
+    renderNetFields();
+    var security = params.security || '';
+    if (security === 'tls' || security === 'reality') {
+        document.getElementById('nodeTls').checked = true; onTlsChange();
+        document.getElementById('nodeSni').value = params.sni || params.host || '';
+        document.getElementById('nodeAlpn').value = params.alpn || '';
+        document.getElementById('nodeFingerprint').value = params.fp || '';
+    }
+    onProtoChange();
+    setTimeout(function() {
+        gelSet('nf_uuid', uuid);
+        gelSet('nf_flow', params.flow || '');
+        gelSet('nf_encryption', 'none');
+        if (net === 'ws') { gelSet('nf_ws_host', params.host || ''); gelSet('nf_ws_path', params.path || '/'); }
+        else if (net === 'h2') { gelSet('nf_h2_host', params.host || ''); gelSet('nf_h2_path', params.path || '/'); }
+        else if (net === 'grpc') { gelSet('nf_grpc_svc', params.serviceName || params.path || ''); }
+    }, 50);
+}
+
+function parseSs(url) {
+    var content = url.slice(5);
+    var name = '';
+    var hashIdx = content.indexOf('#');
+    if (hashIdx !== -1) { name = decodeURIComponent(content.slice(hashIdx + 1)); content = content.slice(0, hashIdx); }
+
+    var plugin = '', pluginOpts = '';
+    var qIdx = content.indexOf('?');
+    if (qIdx !== -1) {
+        var qs = content.slice(qIdx + 1);
+        content = content.slice(0, qIdx);
+        qs.split('&').forEach(function(p) {
+            if (p.startsWith('plugin=')) {
+                var pd = decodeURIComponent(p.slice(7));
+                var semi = pd.indexOf(';');
+                if (semi !== -1) { plugin = pd.slice(0, semi); pluginOpts = pd.slice(semi + 1); }
+                else { plugin = pd; }
+            }
+        });
+    }
+
+    var atIdx = content.indexOf('@');
+    var method, password;
+    if (atIdx !== -1) {
+        var b64part = content.slice(0, atIdx);
+        var serverpart = (content.slice(atIdx + 1) || '').replace(/\/$/, '');
+        var missing = b64part.length % 4; if (missing) b64part += '='.repeat(4 - missing);
+        var decoded = atob(b64part);
+        var colonIdx = decoded.indexOf(':');
+        method = decoded.slice(0, colonIdx);
+        password = decoded.slice(colonIdx + 1);
+
+        var address, port;
+        if (serverpart.includes(':')) {
+            var sp = serverpart.split(':');
+            port = parseInt(sp[sp.length - 1]);
+            address = sp.slice(0, -1).join(':');
+        } else { address = serverpart; port = 8388; }
+
+        document.getElementById('nodeProtocol').value = 'ss';
+        document.getElementById('nodeName').value = name || address + ':' + port;
+        document.getElementById('nodeAddr').value = address;
+        document.getElementById('nodePort').value = port;
+        onProtoChange();
+        if (plugin) document.getElementById('nodeBinType').value = 'sslocal';
+        setTimeout(function() {
+            gelSet('nf_method', method);
+            gelSet('nf_password', password);
+            if (plugin) { gelSet('nf_plugin', plugin); gelSet('nf_plugin_opts', pluginOpts); }
+        }, 50);
+    }
+}
+
+function parseTrojan(url) {
+    var content = url.slice(9);
+    var name = '';
+    var hashIdx = content.indexOf('#');
+    if (hashIdx !== -1) { name = decodeURIComponent(content.slice(hashIdx + 1)); content = content.slice(0, hashIdx); }
+    var params = {};
+    var qIdx = content.indexOf('?');
+    if (qIdx !== -1) {
+        var qs = content.slice(qIdx + 1);
+        content = content.slice(0, qIdx);
+        qs.split('&').forEach(function(p) {
+            var kv = p.split('=');
+            if (kv.length === 2) params[kv[0]] = decodeURIComponent(kv[1]);
+        });
+    }
+    var atIdx = content.indexOf('@');
+    var password = decodeURIComponent(content.slice(0, atIdx));
+    var serverpart = (content.slice(atIdx + 1) || '').replace(/\/$/, '');
+    var address, port;
+    if (serverpart.includes(':')) {
+        var sp = serverpart.split(':');
+        port = parseInt(sp[sp.length - 1]);
+        address = sp.slice(0, -1).join(':');
+    } else { address = serverpart; port = 443; }
+
+    document.getElementById('nodeProtocol').value = 'trojan';
+    document.getElementById('nodeName').value = name || address + ':' + port;
+    document.getElementById('nodeAddr').value = address;
+    document.getElementById('nodePort').value = port;
+    var net = (params.type || 'tcp').toLowerCase();
+    document.getElementById('nodeNetwork').value = net;
+    renderNetFields();
+    document.getElementById('nodeTls').checked = true; onTlsChange();
+    document.getElementById('nodeSni').value = params.sni || params.peer || '';
+    onProtoChange();
+    setTimeout(function() {
+        gelSet('nf_password', password);
+        if (net === 'ws') { gelSet('nf_ws_host', params.host || ''); gelSet('nf_ws_path', params.path || '/'); }
+        else if (net === 'grpc') { gelSet('nf_grpc_svc', params.serviceName || ''); }
+    }, 50);
+}
+
+function parseHy2(url) {
+    var content = url.replace(/^hysteria2?:\/\//, '');
+    var name = '';
+    var hashIdx = content.indexOf('#');
+    if (hashIdx !== -1) { name = decodeURIComponent(content.slice(hashIdx + 1)); content = content.slice(0, hashIdx); }
+    var params = {};
+    var qIdx = content.indexOf('?');
+    if (qIdx !== -1) {
+        var qs = content.slice(qIdx + 1);
+        content = content.slice(0, qIdx);
+        qs.split('&').forEach(function(p) {
+            var kv = p.split('=');
+            if (kv.length === 2) params[kv[0]] = decodeURIComponent(kv[1]);
+        });
+    }
+    var atIdx = content.indexOf('@');
+    var password = decodeURIComponent(content.slice(0, atIdx));
+    var serverpart = (content.slice(atIdx + 1) || '').replace(/\/$/, '');
+    var address, port;
+    if (serverpart.includes(':')) {
+        var sp = serverpart.split(':');
+        port = parseInt(sp[sp.length - 1]);
+        address = sp.slice(0, -1).join(':');
+    } else { address = serverpart; port = 443; }
+
+    document.getElementById('nodeProtocol').value = 'hysteria2';
+    document.getElementById('nodeName').value = name || address + ':' + port;
+    document.getElementById('nodeAddr').value = address;
+    document.getElementById('nodePort').value = port;
+    onProtoChange();
+    setTimeout(function() {
+        gelSet('nf_password', password);
+        gelSet('nf_up_mbps', params.upmbps || '');
+        gelSet('nf_down_mbps', params.downmbps || '');
+        if (params.obfs) { gelSet('nf_obfs_password', params['obfs-password'] || ''); }
+    }, 50);
 }
 
 async function checkSingle(id) {

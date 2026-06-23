@@ -20,7 +20,7 @@
         </div>
         <div class="modal-body">
             <div class="field"><label>Name</label><input class="input" id="obName"></div>
-            <div class="field"><label>Type</label><select class="input" id="obType" onchange="onObTypeChange()"><option value="single">single</option><option value="auto">auto switch</option></select></div>
+            <div class="field"><label>Type</label><select class="input" id="obType" onchange="onObTypeChange()"><option value="single">single</option><option value="auto">auto switch</option><option value="direct">direct</option></select></div>
             <div class="field"><label>Nodes</label>
                 <input class="input" id="obNodeFilter" placeholder="Filter nodes..." oninput="filterObNodes()" style="margin-bottom:6px;">
                 <div id="obNodeList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border,#333);border-radius:4px;"></div>
@@ -82,7 +82,8 @@ function renderOutbounds() {
     if (!outbounds.length) { list.innerHTML = ''; document.getElementById('outboundsEmpty').style.display = 'block'; return; }
     document.getElementById('outboundsEmpty').style.display = 'none';
     list.innerHTML = outbounds.map(function(o) {
-        var hdr = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span><span class="tag">' + (o.type === 'single' ? 'single' : 'auto switch') + '</span> <strong>' + escapeHtml(o.name) + '</strong></span><span style="display:flex;gap:4px;"><button class="btn btn-sm" onclick="openObModal(' + o.id + ')">&#9998;</button><button class="btn btn-sm btn-danger" onclick="confirmDeleteOb(' + o.id + ')">&#10005;</button></span></div>';
+        var typeLabel = o.type === 'single' ? 'single' : (o.type === 'direct' ? 'direct' : 'auto switch');
+        var hdr = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span><span class="tag">' + typeLabel + '</span> <strong>' + escapeHtml(o.name) + '</strong></span><span style="display:flex;gap:4px;"><button class="btn btn-sm" onclick="openObModal(' + o.id + ')">&#9998;</button><button class="btn btn-sm btn-danger" onclick="confirmDeleteOb(' + o.id + ')">&#10005;</button></span></div>';
         var colHdr = '<div class="row-flex" style="font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding:4px 0;"><span style="flex:2;padding-left:8px;">Name</span><span style="flex:1">Protocol</span><span style="flex:2">Address</span><span style="flex:1">TCP</span><span style="flex:1">Curl</span><span style="width:170px;"></span></div>';
         function nodeRow(nd, isActive, extra) {
             var tcp = nd.tcp_latency !== null ? (nd.tcp_latency < 0 ? '<span style="color:var(--red)">fail</span>' : nd.tcp_latency + 'ms') : '<span style="color:#888">—</span>';
@@ -91,7 +92,9 @@ function renderOutbounds() {
             var chkBtn = '<button class="btn btn-sm btn-ok" onclick="checkSingleNode(' + nid + ')">&#8635;</button>';
             return '<div class="row-flex ' + (isActive ? 'row-active' : '') + '"><span style="flex:2;padding-left:8px;">' + escapeHtml(nd.name) + '</span><span style="flex:1">' + escapeHtml(nd.protocol) + '</span><span style="flex:2">' + escapeHtml(nd.address) + ':' + nd.port + '</span><span style="flex:1">' + tcp + '</span><span style="flex:1">' + curl + '</span><span style="width:170px;display:flex;gap:2px;">' + chkBtn + (extra || '') + '</span></div>';
         }
-        if (o.type === 'single') {
+        if (o.type === 'direct') {
+            return '<div class="section"><div class="section-body">' + hdr + '<div class="row-flex" style="padding-left:8px;color:var(--text-secondary);">Traffic goes directly from this server</div></div></div>';
+        } else if (o.type === 'single') {
             var cfg = typeof o.config_json === 'string' ? JSON.parse(o.config_json) : o.config_json;
             var nd = allNodes.find(function(n) { return n.id === cfg.node_id; });
             var row = nd ? nodeRow(nd, true) : '<div class="row-flex" style="color:#888;padding-left:8px;">No node selected</div>';
@@ -115,10 +118,17 @@ function renderOutbounds() {
 var _selectedNodes = [];  // ordered node IDs
 
 function onObTypeChange() {
-    var isSingle = document.getElementById('obType').value === 'single';
-    // single: keep only first selected; auto: no change
-    if (isSingle && _selectedNodes.length > 1) {
+    var type = document.getElementById('obType').value;
+    var nodeField = document.getElementById('obNodeList').parentElement;
+    // single: keep only first selected; auto: no change; direct: hide nodes
+    if (type === 'single' && _selectedNodes.length > 1) {
         _selectedNodes = [_selectedNodes[0]];
+    }
+    if (type === 'direct') {
+        nodeField.style.display = 'none';
+        _selectedNodes = [];
+    } else {
+        nodeField.style.display = '';
     }
     renderNodeList();
 }
@@ -138,12 +148,14 @@ function openObModal(editId) {
             if (o.type === 'single') {
                 var cfg = typeof o.config_json === 'string' ? JSON.parse(o.config_json) : o.config_json;
                 if (cfg.node_id) _selectedNodes = [cfg.node_id];
+            } else if (o.type === 'direct') {
+                _selectedNodes = [];
             } else {
                 _selectedNodes = (o.pool || []).map(function(p) { return p.node_id; });
             }
         }
     }
-    renderNodeList();
+    onObTypeChange(); // show/hide node list based on type
     document.getElementById('obModal').classList.add('show');
 }
 
@@ -183,6 +195,11 @@ async function saveOb() {
     if (obType === 'single') {
         if (!_selectedNodes.length) { addLog('warn', 'Please select a node'); return; }
         config.node_id = _selectedNodes[0];
+    } else if (obType === 'direct') {
+        // direct: no node needed
+    } else {
+        // auto: validate nodes selected
+        if (!_selectedNodes.length) { addLog('warn', 'Please select at least one node'); return; }
     }
     var payload = { name: document.getElementById('obName').value, type: obType, config_json: JSON.stringify(config) };
     var url = '/api/outbounds' + (editId ? '/' + editId : '');

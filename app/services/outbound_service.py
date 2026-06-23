@@ -11,11 +11,11 @@ from app.models.node import get_by_id as get_node
 
 
 def create_outbound(name, out_type, config_json=None):
-    """Create an outbound (single or auto)."""
+    """Create an outbound (single, auto, or direct)."""
     if not name or not name.strip():
         return {'success': False, 'message': 'Name is required'}
-    if out_type not in ('single', 'auto'):
-        return {'success': False, 'message': 'Type must be "single" or "auto"'}
+    if out_type not in ('single', 'auto', 'direct'):
+        return {'success': False, 'message': 'Type must be "single", "auto", or "direct"'}
 
     if config_json is None:
         config_json = {}

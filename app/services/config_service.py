@@ -56,12 +56,19 @@ def get_outbound_node(outbound):
 
     - single: config_json.node_id → node row
     - auto: first pool entry (lowest priority) → node row
+    - direct: virtual node (freedom protocol, no remote server)
     """
     cfg = outbound['config_json']
     if isinstance(cfg, str):
         cfg = json.loads(cfg)
 
-    if outbound['type'] == 'single':
+    if outbound['type'] == 'direct':
+        return {
+            'id': 0, 'name': 'Direct', 'protocol': 'direct',
+            'address': '', 'port': 0,
+            'config_json': '{}', 'bin_type': 'xray',
+        }
+    elif outbound['type'] == 'single':
         node_id = cfg.get('node_id') if isinstance(cfg, dict) else json.loads(cfg).get('node_id')
         return get_node(node_id)
     else:

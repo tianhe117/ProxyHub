@@ -23,9 +23,11 @@ def build_xray_outbound(node, local_port):
     port = int(node['port'])
 
     outbound = _build_outbound(protocol, address, port, cfg)
-    stream = build_stream_settings(cfg)
-    if stream:
-        outbound['streamSettings'] = stream
+    # freedom 直连不需要 stream settings
+    if protocol not in ('direct', 'freedom'):
+        stream = build_stream_settings(cfg)
+        if stream:
+            outbound['streamSettings'] = stream
 
     return {
         'inbounds': [{
@@ -101,6 +103,11 @@ def _build_outbound(protocol, address, port, cfg):
                     'password': cfg.get('password', ''),
                 }],
             },
+        }
+    elif protocol in ('direct', 'freedom'):
+        return {
+            'protocol': 'freedom',
+            'settings': {},
         }
     else:
         raise ValueError(f'Xray does not support protocol: {protocol}')

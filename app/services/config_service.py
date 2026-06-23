@@ -57,16 +57,16 @@ def get_outbound_node(outbound):
     - single: config_json.node_id → node row
     - auto: first pool entry (lowest priority) → node row
     """
-    cfg = outbound['config_json'] if isinstance(outbound, dict) else outbound.config_json
+    cfg = outbound['config_json']
     if isinstance(cfg, str):
         cfg = json.loads(cfg)
 
-    if (outbound['type'] if isinstance(outbound, dict) else outbound.type) == 'single':
+    if outbound['type'] == 'single':
         node_id = cfg.get('node_id') if isinstance(cfg, dict) else json.loads(cfg).get('node_id')
         return get_node(node_id)
     else:
         # auto — take first node from pool
-        out_id = outbound['id'] if isinstance(outbound, dict) else outbound.id
+        out_id = outbound['id']
         pool = get_pool_nodes(out_id)
         if not pool:
             return None

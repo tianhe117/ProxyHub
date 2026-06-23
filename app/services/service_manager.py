@@ -29,11 +29,16 @@ def start_service(service_id):
 
     service_name = svc['name']
 
-    # Check if already running
-    from app.settings import BIN_REGISTRY
-    for bin_type in BIN_REGISTRY:
-        if get_process_status(service_name, bin_type) == 'running':
-            return {'success': False, 'message': f'Service {service_name} is already running'}
+    # Check if already running (scan PID files for this service)
+    from app.process.manager import get_pid_dir as _get_pid_dir
+    pid_dir = _get_pid_dir()
+    prefix = f'{service_name}_'
+    if os.path.isdir(pid_dir):
+        for fname in os.listdir(pid_dir):
+            if fname.startswith(prefix) and fname.endswith('.pid'):
+                key = fname[len(prefix):-4]
+                if get_process_status(service_name, key) == 'running':
+                    return {'success': False, 'message': f'Service {service_name} is already running'}
 
     # Generate configuration
     gen = generate_service_config(service_id)
@@ -48,10 +53,10 @@ def start_service(service_id):
 
     try:
         # 1. Start outbound binary first (so SOCKS5 endpoint is ready)
-        out_pid = start_process(service_name, gen['outbound_bin'], out_path)
+        out_pid = start_process(service_name, gen['outbound_bin'], out_path, role='out')
 
         # 2. Start Xray inbound
-        in_pid = start_process(service_name, 'xray', xray_in_path)
+        in_pid = start_process(service_name, 'xray', xray_in_path, role='in')
 
         update_status(service_id, 'running')
         log('ok', 'service', f'Service {service_name} started '

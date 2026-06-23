@@ -68,18 +68,20 @@ def _get_bin_path(bin_type):
 # Public API
 # ---------------------------------------------------------------------------
 
-def start_process(service_name, bin_type, config_path):
+def start_process(service_name, bin_type, config_path, role=''):
     """Start a proxy binary process.
 
     Args:
         service_name: e.g. 'my-service'
         bin_type: 'xray' | 'sslocal' | 'sing-box'
         config_path: absolute path to the JSON config file
+        role: optional suffix for PID file, e.g. 'in' or 'out'
 
     Returns:
         PID of the launched process.
     """
-    pid_file = _get_pid_file(service_name, bin_type)
+    pid_key = f'{bin_type}_{role}' if role else bin_type
+    pid_file = _get_pid_file(service_name, pid_key)
 
     # Check if already running
     existing_pid = _read_pid(pid_file)
@@ -161,8 +163,13 @@ def stop_process(service_name, bin_type):
 
 def stop_all_for_service(service_name):
     """Stop all binaries associated with a service."""
-    for bin_type in BIN_REGISTRY:
-        stop_process(service_name, bin_type)
+    pid_dir = get_pid_dir()
+    prefix = f'{service_name}_'
+    if os.path.isdir(pid_dir):
+        for fname in os.listdir(pid_dir):
+            if fname.startswith(prefix) and fname.endswith('.pid'):
+                key = fname[len(prefix):-4]  # e.g. 'xray_in', 'xray_out'
+                stop_process(service_name, key)
 
 
 def get_process_status(service_name, bin_type):

@@ -83,11 +83,13 @@ function renderOutbounds() {
     document.getElementById('outboundsEmpty').style.display = 'none';
     list.innerHTML = outbounds.map(function(o) {
         var hdr = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span><span class="tag">' + (o.type === 'single' ? 'single' : 'auto switch') + '</span> <strong>' + escapeHtml(o.name) + '</strong></span><span style="display:flex;gap:4px;"><button class="btn btn-sm" onclick="openObModal(' + o.id + ')">&#9998;</button><button class="btn btn-sm btn-danger" onclick="confirmDeleteOb(' + o.id + ')">&#10005;</button></span></div>';
-        var colHdr = '<div class="row-flex" style="font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding:4px 0;"><span style="flex:2;padding-left:8px;">Name</span><span style="flex:1">Protocol</span><span style="flex:2">Address</span><span style="flex:1">TCP</span><span style="flex:1">Curl</span><span style="width:140px;"></span></div>';
+        var colHdr = '<div class="row-flex" style="font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding:4px 0;"><span style="flex:2;padding-left:8px;">Name</span><span style="flex:1">Protocol</span><span style="flex:2">Address</span><span style="flex:1">TCP</span><span style="flex:1">Curl</span><span style="width:170px;"></span></div>';
         function nodeRow(nd, isActive, extra) {
             var tcp = nd.tcp_latency !== null ? (nd.tcp_latency < 0 ? '<span style="color:var(--red)">fail</span>' : nd.tcp_latency + 'ms') : '<span style="color:#888">—</span>';
             var curl = nd.curl_latency !== null ? (nd.curl_latency < 0 ? '<span style="color:var(--red)">fail</span>' : nd.curl_latency + 'ms') : '<span style="color:#888">—</span>';
-            return '<div class="row-flex ' + (isActive ? 'row-active' : '') + '"><span style="flex:2;padding-left:8px;">' + escapeHtml(nd.name) + '</span><span style="flex:1">' + escapeHtml(nd.protocol) + '</span><span style="flex:2">' + escapeHtml(nd.address) + ':' + nd.port + '</span><span style="flex:1">' + tcp + '</span><span style="flex:1">' + curl + '</span><span style="width:140px;display:flex;gap:2px;">' + (extra || '') + '</span></div>';
+            var nid = nd.id || nd.node_id;
+            var chkBtn = '<button class="btn btn-sm btn-ok" onclick="checkSingleNode(' + nid + ')">&#8635;</button>';
+            return '<div class="row-flex ' + (isActive ? 'row-active' : '') + '"><span style="flex:2;padding-left:8px;">' + escapeHtml(nd.name) + '</span><span style="flex:1">' + escapeHtml(nd.protocol) + '</span><span style="flex:2">' + escapeHtml(nd.address) + ':' + nd.port + '</span><span style="flex:1">' + tcp + '</span><span style="flex:1">' + curl + '</span><span style="width:170px;display:flex;gap:2px;">' + chkBtn + (extra || '') + '</span></div>';
         }
         if (o.type === 'single') {
             var cfg = typeof o.config_json === 'string' ? JSON.parse(o.config_json) : o.config_json;
@@ -262,6 +264,25 @@ async function movePoolBottom(obId, poolId) {
     if (idx < 0 || idx >= order.length - 1) return;
     order.splice(idx, 1); order.push(poolId);
     try { await fetch('/api/outbounds/' + obId + '/nodes/reorder', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({order: order}) }); addLog('ok', 'Moved to bottom'); loadData(); } catch(e) {}
+}
+
+async function checkSingleNode(id) {
+    try {
+        var resp = await fetch('/api/nodes/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({node_ids:[id], check_type:'both'}) });
+        var data = await resp.json();
+        if (data.task_id) { addLog('info', 'Check started for node #' + id); pollCheck(data.task_id); }
+        else { addLog('warn', data.message || 'Check rejected'); }
+    } catch(e) {}
+}
+
+function pollCheck(taskId) {
+    var iv = setInterval(async function() {
+        try {
+            var resp = await fetch('/api/nodes/check/' + taskId + '/status');
+            var data = await resp.json();
+            if (!data.running) { clearInterval(iv); loadData(); addLog('ok', 'Check completed'); }
+        } catch(e) { clearInterval(iv); }
+    }, 1500);
 }
 
 function confirmDeleteOb(id) {

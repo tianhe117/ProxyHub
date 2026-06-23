@@ -493,6 +493,7 @@ async function checkSingle(id) {
         var resp = await fetch('/api/nodes/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({node_ids:[id], check_type:'both'}) });
         var data = await resp.json();
         if (data.task_id) { addLog('info', 'Check started for node #' + id); pollCheck(data.task_id); }
+        else { addLog('warn', data.message || 'Check rejected'); }
     } catch(e) {}
 }
 
@@ -502,6 +503,7 @@ async function checkGroup(gi) {
         var resp = await fetch('/api/nodes/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({node_ids:ids, check_type:'both'}) });
         var data = await resp.json();
         if (data.task_id) { addLog('info', 'Bulk check started'); pollCheck(data.task_id); }
+        else { addLog('warn', data.message || 'Check rejected'); }
     } catch(e) {}
 }
 
@@ -510,6 +512,7 @@ async function checkAll() {
         var resp = await fetch('/api/nodes/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({check_type:'both'}) });
         var data = await resp.json();
         if (data.task_id) { addLog('info', 'Full check started'); pollCheck(data.task_id); }
+        else { addLog('warn', data.message || 'Check rejected'); }
     } catch(e) {}
 }
 

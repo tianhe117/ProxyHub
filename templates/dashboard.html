@@ -135,7 +135,6 @@ function renderServices() {
             '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
             '<span><span class="status-dot ' + dot + '"></span> <strong>' + escapeHtml(s.name) + '</strong></span>' +
             '<span style="display:flex;gap:4px;flex-wrap:wrap;">' +
-            '<label style="font-size:11px;"><input type="checkbox" ' + (s.auto_start ? 'checked' : '') + ' onchange="toggleAutoStart(' + s.id + ', this.checked)"> auto</label>' +
             '<button class="btn btn-sm btn-ok" onclick="controlService(' + s.id + ', \'start\')" ' + (s.status === 'running' ? 'disabled' : '') + '>&#9654;</button>' +
             '<button class="btn btn-sm btn-danger" onclick="controlService(' + s.id + ', \'stop\')" ' + (s.status !== 'running' ? 'disabled' : '') + '>&#9632;</button>' +
             '<button class="btn btn-sm" onclick="controlService(' + s.id + ', \'restart\')">&#8635;</button>' +
@@ -154,16 +153,6 @@ async function controlService(id, action) {
     } catch(e) { addLog('error', 'Service ' + action + ' failed: ' + e); }
 }
 
-async function toggleAutoStart(id, val) {
-    try {
-        await fetch('/api/services/' + id, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({auto_start: val ? 1 : 0})
-        });
-        addLog('ok', 'Service auto_start ' + (val ? 'enabled' : 'disabled'));
-    } catch(e) {}
-}
 
 function openServiceModal(editId) {
     document.getElementById('svcEditId').value = editId || '';

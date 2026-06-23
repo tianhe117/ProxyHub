@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block content %}
-<div id="outboundsList" style="max-width:720px;"></div>
+<div id="outboundsList"></div>
 <div class="empty-state" id="outboundsEmpty" style="display:none;">No outbounds. Create one to proxy traffic.</div>
 {% endblock %}
 
@@ -82,14 +82,29 @@ function renderOutbounds() {
     if (!outbounds.length) { list.innerHTML = ''; document.getElementById('outboundsEmpty').style.display = 'block'; return; }
     document.getElementById('outboundsEmpty').style.display = 'none';
     list.innerHTML = outbounds.map(function(o) {
+        var hdr = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span><span class="tag">' + (o.type === 'single' ? 'single' : 'auto switch') + '</span> <strong>' + escapeHtml(o.name) + '</strong></span><span style="display:flex;gap:4px;"><button class="btn btn-sm" onclick="openObModal(' + o.id + ')">&#9998;</button><button class="btn btn-sm btn-danger" onclick="confirmDeleteOb(' + o.id + ')">&#10005;</button></span></div>';
+        var colHdr = '<div class="row-flex" style="font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding:4px 0;"><span style="flex:2;padding-left:8px;">Name</span><span style="flex:1">Protocol</span><span style="flex:2">Address</span><span style="flex:1">TCP</span><span style="flex:1">Curl</span><span style="width:140px;"></span></div>';
+        function nodeRow(nd, isActive, extra) {
+            var tcp = nd.tcp_latency !== null ? (nd.tcp_latency < 0 ? '<span style="color:var(--red)">fail</span>' : nd.tcp_latency + 'ms') : '<span style="color:#888">—</span>';
+            var curl = nd.curl_latency !== null ? (nd.curl_latency < 0 ? '<span style="color:var(--red)">fail</span>' : nd.curl_latency + 'ms') : '<span style="color:#888">—</span>';
+            return '<div class="row-flex ' + (isActive ? 'row-active' : '') + '"><span style="flex:2;padding-left:8px;">' + escapeHtml(nd.name) + '</span><span style="flex:1">' + escapeHtml(nd.protocol) + '</span><span style="flex:2">' + escapeHtml(nd.address) + ':' + nd.port + '</span><span style="flex:1">' + tcp + '</span><span style="flex:1">' + curl + '</span><span style="width:140px;display:flex;gap:2px;">' + (extra || '') + '</span></div>';
+        }
         if (o.type === 'single') {
             var cfg = typeof o.config_json === 'string' ? JSON.parse(o.config_json) : o.config_json;
-            return '<div class="section"><div class="section-body"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span><span class="tag">single</span> <strong>' + escapeHtml(o.name) + '</strong></span><span style="display:flex;gap:4px;"><button class="btn btn-sm" onclick="openObModal(' + o.id + ')">&#9998;</button><button class="btn btn-sm btn-danger" onclick="confirmDeleteOb(' + o.id + ')">&#10005;</button></span></div><p style="font-size:12px;color:#888;margin-top:4px;">Fixed proxy through node_id=' + (cfg.node_id || '?') + '</p></div></div>';
+            var nd = allNodes.find(function(n) { return n.id === cfg.node_id; });
+            var row = nd ? nodeRow(nd, true) : '<div class="row-flex" style="color:#888;padding-left:8px;">No node selected</div>';
+            return '<div class="section"><div class="section-body">' + hdr + colHdr + row + '</div></div>';
         } else {
-            var poolRows = (o.pool || []).map(function(p, i) {
-                return '<div class="row-flex"><span class="' + (i === 0 ? 'pool-cur' : '') + '">#' + (i+1) + '</span><span class="tag">' + escapeHtml(p.protocol) + '</span><span style="flex:2">' + escapeHtml(p.name) + '</span><span style="flex:2">' + escapeHtml(p.address) + ':' + p.port + '</span><span>' + (p.tcp_latency !== null ? p.tcp_latency + 'ms' : '—') + '</span><button class="btn btn-sm btn-ghost" onclick="movePoolNode(' + o.id + ',' + p.pool_id + ',-1)" ' + (i===0?'disabled':'') + '>&#9650;</button><button class="btn btn-sm btn-ghost" onclick="movePoolNode(' + o.id + ',' + p.pool_id + ',1)">&#9660;</button><button class="btn btn-sm btn-ghost btn-danger" onclick="removePoolNode(' + o.id + ',' + p.pool_id + ')">&#10005;</button></div>';
+            var pool = o.pool || [];
+            var poolRows = pool.map(function(p, i) {
+                var btns = '<button class="btn btn-sm btn-ghost" onclick="movePoolTop(' + o.id + ',' + p.pool_id + ')"' + (i === 0 ? ' disabled' : '') + '>&#9198;</button>' +
+                    '<button class="btn btn-sm btn-ghost" onclick="movePoolNode(' + o.id + ',' + p.pool_id + ',-1)"' + (i === 0 ? ' disabled' : '') + '>&#9650;</button>' +
+                    '<button class="btn btn-sm btn-ghost" onclick="movePoolNode(' + o.id + ',' + p.pool_id + ',1)"' + (i === pool.length - 1 ? ' disabled' : '') + '>&#9660;</button>' +
+                    '<button class="btn btn-sm btn-ghost" onclick="movePoolBottom(' + o.id + ',' + p.pool_id + ')"' + (i === pool.length - 1 ? ' disabled' : '') + '>&#9197;</button>' +
+                    '<button class="btn btn-sm btn-ghost btn-danger" onclick="removePoolNode(' + o.id + ',' + p.pool_id + ')">&#10005;</button>';
+                return nodeRow(p, i === 0, btns);
             }).join('');
-            return '<div class="section"><div class="section-body"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span><span class="tag">auto switch</span> <strong>' + escapeHtml(o.name) + '</strong> &middot; ' + (o.pool||[]).length + ' nodes</span><span style="display:flex;gap:4px;"><button class="btn btn-sm" onclick="openObModal(' + o.id + ')">&#9998;</button><button class="btn btn-sm btn-danger" onclick="confirmDeleteOb(' + o.id + ')">&#10005;</button></span></div><div style="margin-top:6px;">' + poolRows + '<div style="padding:4px 0;"><button class="btn btn-sm" onclick="openPoolAdd(' + o.id + ')">+ add node</button></div></div></div></div>';
+            return '<div class="section"><div class="section-body">' + hdr + colHdr + poolRows + '<div style="padding:4px 0;"><button class="btn btn-sm" onclick="openPoolAdd(' + o.id + ')">+ add node</button></div></div></div>';
         }
     }).join('');
 }
@@ -227,6 +242,26 @@ async function movePoolNode(obId, poolId, dir) {
     if (newIdx < 0 || newIdx >= order.length) return;
     order.splice(idx, 1); order.splice(newIdx, 0, poolId);
     try { await fetch('/api/outbounds/' + obId + '/nodes/reorder', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({order: order}) }); addLog('ok', 'Pool reordered'); loadData(); } catch(e) {}
+}
+
+async function movePoolTop(obId, poolId) {
+    var ob = outbounds.find(function(x) { return x.id == obId; });
+    if (!ob || !ob.pool) return;
+    var order = ob.pool.map(function(p) { return p.pool_id; });
+    var idx = order.indexOf(poolId);
+    if (idx <= 0) return;
+    order.splice(idx, 1); order.unshift(poolId);
+    try { await fetch('/api/outbounds/' + obId + '/nodes/reorder', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({order: order}) }); addLog('ok', 'Moved to top'); loadData(); } catch(e) {}
+}
+
+async function movePoolBottom(obId, poolId) {
+    var ob = outbounds.find(function(x) { return x.id == obId; });
+    if (!ob || !ob.pool) return;
+    var order = ob.pool.map(function(p) { return p.pool_id; });
+    var idx = order.indexOf(poolId);
+    if (idx < 0 || idx >= order.length - 1) return;
+    order.splice(idx, 1); order.push(poolId);
+    try { await fetch('/api/outbounds/' + obId + '/nodes/reorder', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({order: order}) }); addLog('ok', 'Moved to bottom'); loadData(); } catch(e) {}
 }
 
 function confirmDeleteOb(id) {

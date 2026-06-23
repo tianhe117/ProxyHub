@@ -173,7 +173,7 @@
             white-space: nowrap;
         }
         .btn:hover { background: #f5f5f5; }
-        .btn:disabled { color: var(--text-disabled); border-color: var(--border); cursor: not-allowed; }
+        .btn:disabled { color: var(--text-disabled); border-color: var(--border); cursor: default; pointer-events: none; }
         .btn-sm { padding: 2px 8px; font-size: 12px; height: auto; }
         .btn-primary { background: #333; color: #fff; border-color: #333; }
         .btn-primary:hover { background: #555; }
@@ -290,6 +290,8 @@
         .lat-warn { color: var(--orange); }
         .lat-bad { color: var(--red); }
         .pool-cur { color: var(--green); font-weight: bold; }
+        .row-active { background: rgba(80,200,120,0.1); }
+        .row-active span { color: var(--green) !important; }
         .error-msg { color: var(--red); font-size: 13px; }
 
         /* ---- Row (flex table cell) ---- */

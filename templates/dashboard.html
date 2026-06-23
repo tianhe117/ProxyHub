@@ -141,17 +141,20 @@ async function loadData() {
     } catch(e) {}
 
     try {
+        var ir = await fetch('/api/inbounds');
+        inbounds = await ir.json();
+    } catch(e) {}
+
+    try {
+        var or = await fetch('/api/outbounds');
+        outbounds = await or.json();
+    } catch(e) {}
+
+    try {
         var sr = await fetch('/api/services');
         services = await sr.json();
         renderServices();
         document.getElementById('svcCount').textContent = services.length + ' services';
-    } catch(e) {}
-
-    try {
-        var ir = await fetch('/api/inbounds');
-        inbounds = await ir.json();
-        var or = await fetch('/api/outbounds');
-        outbounds = await or.json();
     } catch(e) {}
 }
 
@@ -160,20 +163,33 @@ function renderServices() {
     var empty = document.getElementById('servicesEmpty');
     if (!services.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
     empty.style.display = 'none';
-    list.innerHTML = services.map(function(s) {
+    var rows = services.map(function(s) {
         var dot = s.status === 'running' ? 'ok' : (s.status === 'error' ? 'error' : 'idle');
-        return '<div class="section">' +
-            '<div class="section-body">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
-            '<span><span class="status-dot ' + dot + '"></span> <strong>' + escapeHtml(s.name) + '</strong></span>' +
-            '<span style="display:flex;gap:4px;flex-wrap:wrap;">' +
-            '<button class="btn btn-sm btn-ok" onclick="controlService(' + s.id + ', \'start\')" ' + (s.status === 'running' ? 'disabled' : '') + '>&#9654;</button>' +
-            '<button class="btn btn-sm btn-danger" onclick="controlService(' + s.id + ', \'stop\')" ' + (s.status !== 'running' ? 'disabled' : '') + '>&#9632;</button>' +
-            '<button class="btn btn-sm" onclick="controlService(' + s.id + ', \'restart\')">&#8635;</button>' +
+        var ib = inbounds.find(function(i) { return i.id === s.inbound_id; });
+        var ob = outbounds.find(function(o) { return o.id === s.outbound_id; });
+        var ibName = ib ? escapeHtml(ib.name) + ' (' + ib.protocol + ':' + ib.port + ')' : '—';
+        var obName = ob ? escapeHtml(ob.name) + ' (' + ob.type + ')' : '—';
+        var autoLabel = s.auto_start ? '<span style="color:var(--green);">ON</span>' : 'OFF';
+        var btns = '<button class="btn btn-sm btn-ok" onclick="controlService(' + s.id + ',\'start\')" ' + (s.status === 'running' ? 'disabled' : '') + '>&#9654;</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="controlService(' + s.id + ',\'stop\')" ' + (s.status !== 'running' ? 'disabled' : '') + '>&#9632;</button>' +
+            '<button class="btn btn-sm" onclick="controlService(' + s.id + ',\'restart\')">&#8635;</button>' +
             '<button class="btn btn-sm" onclick="openServiceModal(' + s.id + ')">&#9998;</button>' +
-            '<button class="btn btn-sm btn-danger" onclick="confirmDeleteService(' + s.id + ')">&#10005;</button>' +
-            '</span></div></div></div>';
+            '<button class="btn btn-sm btn-danger" onclick="confirmDeleteService(' + s.id + ')">&#10005;</button>';
+        return '<div class="row-flex" style="align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">' +
+            '<span style="flex:2;display:flex;align-items:center;gap:6px;"><span class="status-dot ' + dot + '"></span><strong>' + escapeHtml(s.name) + '</strong></span>' +
+            '<span style="flex:2;">' + ibName + '</span>' +
+            '<span style="flex:2;">' + obName + '</span>' +
+            '<span style="flex:1;">' + autoLabel + '</span>' +
+            '<span style="width:170px;display:flex;gap:2px;">' + btns + '</span>' +
+            '</div>';
     }).join('');
+    var header = '<div class="row-flex" style="font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding:4px 0;">' +
+        '<span style="flex:2;padding-left:8px;">Name</span>' +
+        '<span style="flex:2;">Inbound</span>' +
+        '<span style="flex:2;">Outbound</span>' +
+        '<span style="flex:1;">Auto</span>' +
+        '<span style="width:170px;"></span></div>';
+    list.innerHTML = '<div class="section"><div class="section-body">' + header + rows + '</div></div>';
 }
 
 async function controlService(id, action) {

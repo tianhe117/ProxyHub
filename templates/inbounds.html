@@ -20,11 +20,8 @@
         </div>
         <div class="modal-body">
             <div class="field"><label>Name</label><input class="input" id="inName"></div>
-            <div class="field-row">
-                <div class="field"><label>Protocol</label><select class="input" id="inProtocol" onchange="onInProtoChange()"><option value="http">HTTP</option><option value="socks">SOCKS</option><option value="ss">Shadowsocks</option><option value="vmess">VMess</option></select></div>
-                <div class="field"><label>Port</label><input class="input" type="number" id="inPort"></div>
-            </div>
-            <div class="field"><label>Listen Address</label><input class="input" id="inListen" value="0.0.0.0"></div>
+            <div class="field"><label>Protocol</label><select class="input" id="inProtocol" onchange="onInProtoChange()"><option value="http">HTTP</option><option value="socks">SOCKS</option><option value="ss">Shadowsocks</option><option value="vmess">VMess</option></select></div>
+            <div class="field"><label>Port</label><input class="input" type="number" id="inPort"></div>
             <div id="inProtoFields"></div>
             <input type="hidden" id="inEditId">
         </div>
@@ -63,29 +60,47 @@ function renderInbounds() {
     var list = document.getElementById('inboundsList');
     if (!inbounds.length) { list.innerHTML = ''; document.getElementById('inboundsEmpty').style.display = 'block'; return; }
     document.getElementById('inboundsEmpty').style.display = 'none';
-    list.innerHTML = '<div class="section"><div class="section-body">' + inbounds.map(function(i) {
-        var params = '';
+    list.innerHTML = inbounds.map(function(i) {
+        var hdr = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span><span class="tag">' + escapeHtml(i.protocol) + '</span> <strong>' + escapeHtml(i.name) + '</strong></span><span style="display:flex;gap:4px;"><button class="btn btn-sm" onclick="openInModal(' + i.id + ')">&#9998;</button><button class="btn btn-sm btn-danger" onclick="confirmDelete(' + i.id + ')">&#10005;</button></span></div>';
+        var rows = kvRow('Port', i.port);
         try {
             var p = typeof i.params_json === 'string' ? JSON.parse(i.params_json) : i.params_json;
             if (p) {
-                if (i.protocol === 'http' || i.protocol === 'socks') params = 'user: ' + (p.username || '—');
-                else if (i.protocol === 'ss') params = p.method || '';
-                else if (i.protocol === 'vmess') params = 'uuid: ' + ((p.uuid||'').slice(0,8) + '...');
+                if (i.protocol === 'http' || i.protocol === 'socks') {
+                    if (p.username) rows += kvRow('Username', escapeHtml(p.username));
+                    if (p.password) rows += kvRow('Password', '••••••');
+                } else if (i.protocol === 'ss') {
+                    if (p.method) rows += kvRow('Method', escapeHtml(p.method));
+                    if (p.password) rows += kvRow('Password', '••••••');
+                } else if (i.protocol === 'vmess') {
+                    if (p.uuid) rows += kvRow('UUID', escapeHtml(p.uuid));
+                    if (p.alterId !== undefined) rows += kvRow('alterId', p.alterId);
+                    if (p.network) {
+                        rows += kvRow('Network', escapeHtml(p.network));
+                        if (p.ws_path) rows += kvRow('WS Path', escapeHtml(p.ws_path));
+                        if (p.h2_path) rows += kvRow('H2 Path', escapeHtml(p.h2_path));
+                        if (p.grpc_service_name) rows += kvRow('gRPC Service', escapeHtml(p.grpc_service_name));
+                    }
+                }
             }
         } catch(e) {}
-        return '<div class="row-flex"><span style="flex:2">' + escapeHtml(i.name) + '</span><span class="tag" style="flex:1">' + escapeHtml(i.protocol) + '</span><span style="flex:2">' + escapeHtml(i.listen_addr) + ':' + i.port + '</span><span style="flex:2;color:#888;font-size:12px;">' + escapeHtml(params) + '</span><button class="btn btn-sm" onclick="openInModal(' + i.id + ')">&#9998;</button><button class="btn btn-sm btn-danger" onclick="confirmDelete(' + i.id + ')">&#10005;</button></div>';
-    }).join('') + '</div></div>';
+        return '<div class="section"><div class="section-body">' + hdr + rows + '</div></div>';
+    }).join('');
+}
+
+function kvRow(key, val) {
+    return '<div style="padding:2px 0;"><span style="color:var(--text-secondary);font-size:12px;">' + key + '</span> <span>' + val + '</span></div>';
 }
 
 function onInProtoChange() {
     var proto = document.getElementById('inProtocol').value;
     var div = document.getElementById('inProtoFields');
     if (proto === 'http' || proto === 'socks') {
-        div.innerHTML = '<div class="field-row"><div class="field"><label>Username</label><input class="input" id="inf_user"></div><div class="field"><label>Password</label><input class="input" id="inf_pass"></div></div>';
+        div.innerHTML = '<div class="field"><label>Username</label><input class="input" id="inf_user"></div><div class="field"><label>Password</label><input class="input" id="inf_pass"></div>';
     } else if (proto === 'ss') {
-        div.innerHTML = '<div class="field-row"><div class="field"><label>Method</label><select class="input" id="inf_method"><option value="aes-256-gcm">aes-256-gcm</option><option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option></select></div><div class="field"><label>Password</label><input class="input" id="inf_pass"></div></div>';
+        div.innerHTML = '<div class="field"><label>Method</label><select class="input" id="inf_method"><option value="aes-256-gcm">aes-256-gcm</option><option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option></select></div><div class="field"><label>Password</label><input class="input" id="inf_pass"></div>';
     } else if (proto === 'vmess') {
-        div.innerHTML = '<div class="field-row"><div class="field"><label>UUID</label><input class="input" id="inf_uuid"></div><div class="field"><label>alterId</label><input class="input" type="number" id="inf_alterId" value="0"></div></div><div class="field"><label>Network</label><select class="input" id="inf_network" onchange="onInNetChange()"><option value="">TCP</option><option value="ws">WebSocket</option><option value="h2">HTTP/2</option><option value="grpc">gRPC</option></select></div><div id="inNetFields"></div>';
+        div.innerHTML = '<div class="field"><label>UUID</label><input class="input" id="inf_uuid"></div><div class="field"><label>alterId</label><input class="input" type="number" id="inf_alterId" value="0"></div><div class="field"><label>Network</label><select class="input" id="inf_network" onchange="onInNetChange()"><option value="">TCP</option><option value="ws">WebSocket</option><option value="h2">HTTP/2</option><option value="grpc">gRPC</option></select></div><div id="inNetFields"></div>';
     } else div.innerHTML = '';
 }
 
@@ -119,7 +134,7 @@ function gel(id) { var e = document.getElementById(id); return e ? e.value : '';
 function openInModal(editId) {
     document.getElementById('inEditId').value = editId || '';
     document.getElementById('inModalTitle').textContent = editId ? 'Edit Inbound' : 'New Inbound';
-    document.getElementById('inName').value = ''; document.getElementById('inPort').value = ''; document.getElementById('inListen').value = '0.0.0.0';
+    document.getElementById('inName').value = ''; document.getElementById('inPort').value = '';
     onInProtoChange();
     if (editId) {
         var i = inbounds.find(function(x) { return x.id == editId; });
@@ -127,7 +142,6 @@ function openInModal(editId) {
             document.getElementById('inName').value = i.name;
             document.getElementById('inProtocol').value = i.protocol;
             document.getElementById('inPort').value = i.port;
-            document.getElementById('inListen').value = i.listen_addr;
             onInProtoChange();
             try {
                 var p = typeof i.params_json === 'string' ? JSON.parse(i.params_json) : i.params_json;
@@ -155,7 +169,6 @@ async function saveIn() {
     var payload = {
         name: document.getElementById('inName').value,
         protocol: document.getElementById('inProtocol').value,
-        listen_addr: document.getElementById('inListen').value,
         port: parseInt(document.getElementById('inPort').value),
         params_json: collectInParams()
     };

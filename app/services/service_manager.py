@@ -14,7 +14,7 @@ from app.models.service import (
 from app.process.manager import (
     start_process, stop_service as stop_service_processes,
     stop_all_processes as stop_all_bin_processes,
-    is_service_running, get_service_processes
+    get_service_processes
 )
 from app.services.config_service import (
     generate_service_config, save_service_config

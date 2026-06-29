@@ -17,6 +17,10 @@ def create_app():
     _base = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
     app = Flask(__name__, template_folder=_os.path.join(_base, 'templates'))
 
+    # Trust nginx proxy headers (X-Forwarded-Proto/Host/For)
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_proto=1)
+
     # Session persists for 30 days
     app.permanent_session_lifetime = timedelta(days=30)
 

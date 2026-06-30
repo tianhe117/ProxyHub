@@ -573,6 +573,56 @@ def start_auto_start_daemon(app):
 # Failover query API
 # ---------------------------------------------------------------------------
 
+def switch_node(outbound_id, node_id):
+    """Manually switch an auto-type outbound to a specific node.
+
+    Updates failover state and restarts all running services on this outbound.
+
+    Returns:
+        dict: {success, message, node_name}
+    """
+    outbound = get_outbound(outbound_id)
+    if not outbound:
+        return {'success': False, 'message': 'Outbound not found'}
+    if outbound['type'] != 'auto':
+        return {'success': False, 'message': 'Only auto-type outbounds support node switching'}
+
+    node = get_node(node_id)
+    if not node:
+        return {'success': False, 'message': 'Node not found'}
+
+    # Update failover state
+    state = _get_failover_state(outbound_id)
+    state['current_node_id'] = node_id
+    state['fail_count'] = 0
+    state['all_dead_count'] = 0
+    state['interval'] = _get_normal_interval()
+
+    # Restart all running services on this outbound
+    restarted = []
+    for svc in list_all():
+        if svc['outbound_id'] != outbound_id:
+            continue
+        if svc['status'] != 'running':
+            continue
+        result = _start_service_with_node(svc['id'], node_id)
+        if result['success']:
+            restarted.append(svc['name'])
+        else:
+            log('error', 'switch', f'{svc["name"]}: restart failed — {result["message"]}')
+
+    if restarted:
+        log('ok', 'switch',
+            f'outbound#{outbound_id} ({outbound["name"]}): '
+            f'manually switched to {node["name"]}, restarted: {", ".join(restarted)}')
+    else:
+        log('info', 'switch',
+            f'outbound#{outbound_id} ({outbound["name"]}): '
+            f'manually switched to {node["name"]}, no running services to restart')
+
+    return {'success': True, 'message': f'Switched to {node["name"]}', 'node_name': node['name']}
+
+
 def get_current_node(service_id):
     """Return the current node for a service's outbound.
 

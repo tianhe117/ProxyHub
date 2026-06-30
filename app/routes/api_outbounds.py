@@ -7,6 +7,7 @@ from app.services.outbound_service import (
     create_outbound, update_outbound, delete_outbound,
     add_node_to_pool, remove_node_from_pool, reorder_pool, sync_pool,
 )
+from app.services.service_manager import switch_node
 from app.models.outbound import get_pool_nodes
 from . import auth_required
 
@@ -89,3 +90,14 @@ def sync_pool_handler(out_id):
     data = request.get_json(force=True) or {}
     result = sync_pool(out_id, data.get('node_ids', []))
     return jsonify(result)
+
+
+@api_outbounds.route('/<int:out_id>/switch-node', methods=['POST'])
+@auth_required
+def switch_node_handler(out_id):
+    data = request.get_json(force=True) or {}
+    node_id = data.get('node_id', 0)
+    if not node_id:
+        return jsonify({'success': False, 'message': 'node_id required'}), 400
+    result = switch_node(out_id, node_id)
+    return jsonify(result), 200 if result['success'] else 400

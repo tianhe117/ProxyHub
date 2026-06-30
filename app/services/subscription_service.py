@@ -10,7 +10,7 @@ from datetime import datetime
 
 import yaml
 
-from app.models.subscription import get_by_id, update, clear_nodes, batch_insert_nodes
+from app.models.subscription import get_by_id, update, clear_nodes, batch_insert_nodes, sync_nodes
 from app.logger import log
 
 
@@ -50,10 +50,14 @@ def refresh_subscription(sub_id):
     # 4. Filter
     nodes = _apply_filters(nodes, filter_kw, exclude_kw)
 
-    # 5. Store
-    clear_nodes(sub_id)
+    # 5. Store (sync by name: update existing, delete removed, insert new)
     if nodes:
-        batch_insert_nodes(sub_id, nodes)
+        result = sync_nodes(sub_id, nodes)
+        log('info', 'subscription',
+            f'{sub["name"]}: sync done — '
+            f'updated={result["updated"]}, deleted={result["deleted"]}, inserted={result["inserted"]}')
+    else:
+        clear_nodes(sub_id)
 
     # 6. Update subscription metadata
     update(sub_id, updated_at=datetime.now().isoformat(),
@@ -62,8 +66,8 @@ def refresh_subscription(sub_id):
            total_bytes=info.get('total', 0),
            expire_at=info.get('expire', 0))
 
-    log('ok', 'subscription', f'{sub["name"]}: {len(nodes)} nodes imported')
-    return {'success': True, 'message': f'{len(nodes)} nodes imported',
+    log('ok', 'subscription', f'{sub["name"]}: {len(nodes)} nodes synced')
+    return {'success': True, 'message': f'{len(nodes)} nodes synced',
             'node_count': len(nodes)}
 
 

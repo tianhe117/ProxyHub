@@ -161,16 +161,9 @@ def _do_failover(outbound_id, pool, current_node_id):
                 f'(tcp={health["tcp_latency"]}ms, curl={health["curl_latency"]}ms)')
 
     if best_node_id is not None:
-        # Found a healthy node — update state
+        # Found a healthy node — restart all running services on this outbound first
         new_node = get_node(best_node_id)
-        state = _get_failover_state(outbound_id)
-        state['current_node_id'] = best_node_id
-        state['fail_count'] = 0
-        state['all_dead_count'] = 0
-        state['interval'] = _get_normal_interval()
-
-        # Restart ALL running services that share this outbound
-        restarted = []
+        restarted, failed = [], []
         for svc in list_all():
             if svc['outbound_id'] != outbound_id:
                 continue
@@ -180,19 +173,29 @@ def _do_failover(outbound_id, pool, current_node_id):
             if result['success']:
                 restarted.append(svc['name'])
             else:
+                failed.append(svc['name'])
                 log('error', 'failover',
                     f'{svc["name"]}: restart failed — {result["message"]}')
 
-        if restarted:
+        # Update state according to outcome
+        state = _get_failover_state(outbound_id)
+        state['current_node_id'] = best_node_id
+        state['fail_count'] = 0
+        if failed:
+            # Some services failed — stay in fail-fast so health check retries soon
+            state['interval'] = _get_fail_fast_interval()
+            state['all_dead_count'] = 0
+            log('warn', 'failover',
+                f'outbound#{outbound_id} ({ob_name}): '
+                f'switched to {new_node["name"]} but {len(failed)} service(s) failed — '
+                f'retry in {state["interval"]}s; restarted: {", ".join(restarted)}; '
+                f'failed: {", ".join(failed)}')
+        else:
+            state['all_dead_count'] = 0
+            state['interval'] = _get_normal_interval()
             log('ok', 'failover',
                 f'outbound#{outbound_id} ({ob_name}): '
-                f'switched to {new_node["name"]} (tcp={best_tcp}ms), '
-                f'restarted: {", ".join(restarted)}')
-        else:
-            log('info', 'failover',
-                f'outbound#{outbound_id} ({ob_name}): '
-                f'switched to {new_node["name"]} (tcp={best_tcp}ms), '
-                f'but no running services to restart')
+                f'switched to {new_node["name"]}, restarted: {", ".join(restarted)}')
         return True
     else:
         # All nodes dead — increment wait
@@ -225,6 +228,7 @@ def _start_service_with_node(service_id, node_id):
     procs = get_service_processes(service_name)
     if procs:
         stop_service_processes(service_name)
+        time.sleep(0.5)  # let ports release before re-binding
 
     # Generate config with node override
     from app.models.inbound import get_by_id as get_inbound
